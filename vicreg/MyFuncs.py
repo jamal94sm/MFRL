@@ -7,7 +7,7 @@ import Utils as root_utils
 
 import MyModels
 import MyUtils
-import vicreg_loss
+from vicreg_loss import vicreg_loss
 
 
 def _extract_eval_features(encoder, x):
