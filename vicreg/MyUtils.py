@@ -11,7 +11,7 @@ fails to load.
 import os
 import math
 import torch
-from . import MyModels
+import MyModels
 
 
 class WarmupCosineSchedule:
