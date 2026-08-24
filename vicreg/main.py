@@ -7,10 +7,11 @@ import sys
 here = os.path.dirname(os.path.abspath(__file__))    # MFRL/vicreg
 parent = os.path.dirname(here)                         # MFRL root
 
-if parent not in sys.path:
-    sys.path.insert(0, parent)
-if here not in sys.path:
-    sys.path.insert(0, here)
+for p in (parent, here):
+    if p in sys.path:
+        sys.path.remove(p)
+sys.path.insert(0, parent)
+sys.path.insert(0, here)   # inserted last -> ends up at position 0
 os.chdir(parent)
 
 import warnings
