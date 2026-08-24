@@ -5,9 +5,9 @@ import Datasets as datasets_root
 import periodic_eval
 import Utils as root_utils
 
-from . import MyModels
-from . import MyUtils
-from .vicreg_loss import vicreg_loss
+import MyModels
+import MyUtils
+import vicreg_loss
 
 
 def _extract_eval_features(encoder, x):
