@@ -6,10 +6,10 @@ import checkpoint_init
 import Utils as root_utils
 import Datasets as datasets_root
 
-from . import MyFuncs
-from . import MyModels
-from . import MyUtils
-from .paired_dataset import TwoViewSTL10
+import MyFuncs
+import MyModels
+import MyUtils
+import TwoViewSTL10
 
 baseline_name = "VICReg_baseline"
 
