@@ -9,7 +9,7 @@ import Datasets as datasets_root
 import MyFuncs
 import MyModels
 import MyUtils
-import TwoViewSTL10
+from paired_dataset import TwoViewSTL10
 
 baseline_name = "VICReg_baseline"
 
