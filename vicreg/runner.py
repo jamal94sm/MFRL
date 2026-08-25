@@ -9,7 +9,7 @@ import Datasets as datasets_root
 import MyFuncs
 import MyModels
 import MyUtils
-from paired_dataset import TwoViewSTL10
+from paired_dataset import TwoViewSTL10, TwoViewTinyImageNet
 
 baseline_name = "VICReg_baseline"
 
@@ -39,8 +39,14 @@ def run(args):
     # images, independent of that loader's internal transform.
     dataset_key = datasets_root.normalize_dataset_name(args.dataset)
     root = os.path.join(datasets_root.data_bank_root(args), dataset_key)
-    train_ds = TwoViewSTL10(root=root, split=args.stl10_split,
-                             img_size=args.image_size[0], download=True)
+
+    if dataset_key == "stl10":
+        train_ds = TwoViewSTL10(root=root, split=args.stl10_split,
+                                 img_size=args.image_size[0], download=True)
+    elif dataset_key == "tiny-imagenet":
+        train_ds = TwoViewTinyImageNet(root=root, img_size=args.image_size[0])
+    else:
+        raise ValueError(f"No two-view pretraining dataset wired up for {dataset_key!r}")
     dataloader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, pin_memory=False, drop_last=True,
