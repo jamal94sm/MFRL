@@ -23,11 +23,51 @@ from PIL import ImageOps, ImageFilter
 from torchvision import transforms
 from torchvision.datasets import STL10
 
+from Datasets.TinyImageNet.loader import (
+    _ensure_tiny_imagenet, TinyImageNet, _train_pretrain_and_eval_indices,
+)
+
 # Mirrors MyFuncs.py's _DATASET_NORM -- keep in sync if that dict changes.
 _DATASET_NORM = {
     "stl10": ((0.4467, 0.4398, 0.4066), (0.2603, 0.2566, 0.2713)),
     "tiny-imagenet": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
 }
+
+
+class TwoViewTinyImageNet(Dataset):
+    """Two-view Tiny-ImageNet for VICReg pretraining.
+
+    Reuses Datasets.TinyImageNet.loader's own _ensure_tiny_imagenet (download/
+    extract) and _train_pretrain_and_eval_indices (stratified 50/class eval
+    holdout, seed=0) UNCHANGED -- so VICReg pretrains on the exact same
+    image indices as the proposed method, not a reimplementation that could
+    silently drift out of sync. Only the transform differs (official VICReg
+    two-branch recipe instead of the proposed method's fixed Resize+CenterCrop).
+    """
+
+    def __init__(self, root, img_size):
+        data_root = _ensure_tiny_imagenet(root)
+        full_train = TinyImageNet(root=data_root, split="train", transform=None)
+        pretrain_idx, _ = _train_pretrain_and_eval_indices(full_train)
+
+        self.samples = [full_train.samples[i] for i in pretrain_idx]
+        self.targets = [full_train.targets[i] for i in pretrain_idx]
+
+        mean, std = _DATASET_NORM["tiny-imagenet"]
+        self.transform = _build_view_transform(img_size, mean, std, blur_p=1.0, solarize_p=0.0)
+        self.transform_prime = _build_view_transform(img_size, mean, std, blur_p=0.1, solarize_p=0.2)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        from PIL import Image
+        img = Image.open(self.samples[idx]).convert("RGB")
+        view1 = self.transform(img)
+        view2 = self.transform_prime(img)
+        return view1, view2, self.targets[idx]
+
+
 
 
 class _GaussianBlur:
