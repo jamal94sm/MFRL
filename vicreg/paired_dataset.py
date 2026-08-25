@@ -22,7 +22,7 @@ import numpy as np
 from PIL import ImageOps, ImageFilter
 from torchvision import transforms
 from torchvision.datasets import STL10
-
+from torch.utils.data import Dataset
 from Datasets.TinyImageNet.loader import (
     _ensure_tiny_imagenet, TinyImageNet, _train_pretrain_and_eval_indices,
 )
