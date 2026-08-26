@@ -122,8 +122,27 @@ def get_arguments():
                               "--image_size or --num_patches.")
     parser.add_argument('--gabor_log_every',    type=int,   default=5,
                          help="Print structural/diagnostic logs every N epochs.")
-    parser.add_argument('--log_conflict',       type=int,   default=1, choices=[0, 1],
-                         help="Log cosine between task gradients on shared params.")
+    parser.add_argument('--log_conflict', type=int, default=1, choices=[0, 1],
+                        help="Log cosine between task gradients on shared params.")
+
+    # ─── C-JEPA regularizer (Mo & Tong, NeurIPS 2024, arXiv:2410.19560) ──
+    parser.add_argument('--use_cjepa_reg', type=int, default=0, choices=[0, 1],
+        help="1 = add the C-JEPA pairwise variance-invariance-covariance "
+             "regularizer across the M target-block predictions. No extra "
+             "augmented views or forward passes -- reuses the existing "
+             "predictor output. Requires --num_blocks >= 2 -- the default "
+             "here is 1, so you must raise it explicitly to use this flag.")
+    parser.add_argument('--cjepa_weight', type=float, default=0.001,
+        help="Outer scale on the C-JEPA term (paper's beta_vicreg).")
+    parser.add_argument('--cjepa_sim_weight', type=float, default=25.0)
+    parser.add_argument('--cjepa_std_weight', type=float, default=25.0)
+    parser.add_argument('--cjepa_cov_weight', type=float, default=1.0)
+    parser.add_argument('--cjepa_gamma', type=float, default=1.0)
+    parser.add_argument('--cjepa_eps', type=float, default=1e-4)
+    parser.add_argument('--cjepa_proj_dim', type=int, default=None,
+        help="C-JEPA projector output dim. Defaults to --embed_dim.")
+    parser.add_argument('--cjepa_proj_hidden', type=int, default=None,
+        help="C-JEPA projector hidden dim. Defaults to --embed_dim.")
 
     args = parser.parse_args()
     args.use_a1 = args.struct_mode in ('a1', 'both')
