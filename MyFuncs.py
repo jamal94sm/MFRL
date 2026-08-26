@@ -9,7 +9,7 @@ import Utils as root_utils
 import periodic_eval
 from gabor import GaborBank, patch_energy_descriptor, sanity_report
 from struct_loss import structure_loss, grad_conflict_cosine
-
+from cjepa_loss import cjepa_regularizer
 
 CORRUPT_BLUE, CORRUPT_RED, CORRUPT_GREEN, CORRUPT_JITTER, CORRUPT_NOISE = 0, 1, 2, 3, 4
 N_CORRUPT = 5
@@ -273,6 +273,7 @@ def Train(
     gabor_bank=None,
     struct_head=None,
     task_weighter=None,
+    cjepa_projector=None,
 ):
     device = args.device
     epoch_losses = []
@@ -285,6 +286,7 @@ def Train(
     use_a1 = struct_head is not None and bool(getattr(args, "use_a1", False))
     use_a2 = struct_head is not None and bool(getattr(args, "use_a2", False))
     use_struct = use_a1 or use_a2
+    use_cjepa = cjepa_projector is not None
 
 
     # ─── Startup summary — mirrors source_pretraining.py's transparency ───
@@ -316,6 +318,13 @@ def Train(
               f"weighting={getattr(args,'task_weighting','fixed')}")
     else:
         print()
+    print(f"  C-JEPA regularizer: {'ON' if use_cjepa else 'OFF'}", end="")
+    if use_cjepa:
+        print(f" (weight={args.cjepa_weight}, sim={args.cjepa_sim_weight}, "
+              f"std={args.cjepa_std_weight}, cov={args.cjepa_cov_weight}, "
+              f"blocks={args.num_blocks})")
+    else:
+        print()
     print(f"{'='*70}\n")
 
     
@@ -341,6 +350,8 @@ def Train(
         ep_a1 = ep_a1_cos = ep_a1_top1 = 0.0
         ep_a2 = ep_a2_cos = ep_a2_top1 = 0.0
         n_a1 = n_a2 = 0
+        ep_cjepa = ep_cjepa_sim = ep_cjepa_std = ep_cjepa_cov = 0.0
+        n_cjepa = 0
         ep_conflict = float("nan")
 
         for images, _ in pbar:
@@ -391,6 +402,19 @@ def Train(
 
             loss_jepa = MSE_loss(pred_embeddings, target_embeddings)
             loss = loss_jepa
+
+            l_cjepa = None
+            if use_cjepa:
+                l_cjepa, s_cjepa = cjepa_regularizer(
+                    pred_embeddings, args.num_blocks, B, cjepa_projector,
+                    sim_weight=args.cjepa_sim_weight, std_weight=args.cjepa_std_weight,
+                    cov_weight=args.cjepa_cov_weight, gamma=args.cjepa_gamma,
+                    eps=args.cjepa_eps)
+                ep_cjepa += l_cjepa.item()
+                ep_cjepa_sim += s_cjepa["sim"]
+                ep_cjepa_std += s_cjepa["std"]
+                ep_cjepa_cov += s_cjepa["cov"]
+                n_cjepa += 1
 
             l_a1 = l_a2 = None
             if use_struct:
@@ -461,7 +485,9 @@ def Train(
                     loss = loss + args.w_a1 * l_a1
                 if l_a2 is not None:
                     loss = loss + args.w_a2 * l_a2
-
+            if l_cjepa is not None:
+                loss = loss + args.cjepa_weight * l_cjepa
+                
             # ─── Gradient-conflict diagnostic on shared params ───
             # >0 complementary, ~0 orthogonal, <0 conflicting.
             if (use_struct and args.log_conflict and n_batches == 0
@@ -494,9 +520,12 @@ def Train(
                 mom=f"{momentum:.4f}",
             )
 
-        root_utils.finish_epoch_progress_bar(pbar)
         epoch_loss /= max(n_batches, 1)
         epoch_losses.append(epoch_loss)
+        ep_cjepa /= max(n_cjepa, 1)
+        ep_cjepa_sim /= max(n_cjepa, 1)
+        ep_cjepa_std /= max(n_cjepa, 1)
+        ep_cjepa_cov /= max(n_cjepa, 1)
         feat_var = epoch_var_sum / max(epoch_var_count, 1)
         print(
             f"Epoch {epoch+1} | loss={epoch_loss:.4f} | feature_var={feat_var:.6f} "
@@ -512,6 +541,9 @@ def Train(
             print(f"    A2 (hidden):  loss={ep_a2/max(n_a2,1):.4f}  "
                   f"cos={ep_a2_cos/max(n_a2,1):.3f}  "
                   f"top1={ep_a2_top1/max(n_a2,1):.3f}")
+        if use_cjepa:
+            print(f"  C-JEPA: loss={ep_cjepa:.4f} sim={ep_cjepa_sim:.4f} "
+                  f"std={ep_cjepa_std:.4f} cov={ep_cjepa_cov:.4f}")
         if use_struct and args.log_conflict:
             msg = f"    conflict_cos={ep_conflict:+.4f}"
             if task_weighter is not None:
@@ -528,6 +560,8 @@ def Train(
             models["struct_head"] = struct_head
             if task_weighter is not None:
                 models["task_weighter"] = task_weighter
+        if cjepa_projector is not None:
+            models["cjepa_projector"] = cjepa_projector
 
         eval_history, best_acc = periodic_eval.maybe_eval_epoch(
             epoch, context_encoder, args, eval_history, _extract_eval_features,
