@@ -7,6 +7,7 @@ import MyModels
 import MyUtils
 import Utils as root_utils
 from gabor import GaborBank
+from cjepa_loss import cjepa_regularizer, CJEPAProjector
 
 baseline_name = "JEPA_corruption_all"
 
@@ -69,6 +70,20 @@ def run(dataset, args):
         models["struct_head"] = struct_head
         if task_weighter is not None:
             models["task_weighter"] = task_weighter
+    
+        use_cjepa = bool(getattr(args, "use_cjepa_reg", False))
+        cjepa_projector = None
+        if use_cjepa:
+            if args.num_blocks < 2:
+                raise SystemExit("--use_cjepa_reg 1 requires --num_blocks >= 2 "
+                                  "(the regularizer compares pairs of target blocks).")
+            cjepa_projector = CJEPAProjector(
+                args.embed_dim, out_dim=args.cjepa_proj_dim,
+                hidden=args.cjepa_proj_hidden).to(args.device)
+            models["cjepa_projector"] = cjepa_projector
+            print(f"C-JEPA reg: weight={args.cjepa_weight} sim={args.cjepa_sim_weight} "
+                  f"std={args.cjepa_std_weight} cov={args.cjepa_cov_weight} "
+                  f"blocks={args.num_blocks}")
 
     if root_utils.maybe_eval_only(
         context_encoder, args, MyFuncs._extract_eval_features, models, ckpt_base
@@ -93,6 +108,8 @@ def run(dataset, args):
         train_params += list(struct_head.parameters())
     if task_weighter is not None:
         train_params += list(task_weighter.parameters())
+    if cjepa_projector is not None:
+        train_params += list(cjepa_projector.parameters())
 
     opt = torch.optim.AdamW(
         train_params,
@@ -137,6 +154,7 @@ def run(dataset, args):
         gabor_bank=gabor_bank,
         struct_head=struct_head,
         task_weighter=task_weighter,
+        cjepa_projector=cjepa_projector,
     )
     results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Results")
     MyUtils.Plot(epoch_losses, plot_name=baseline_name, results_dir=results_dir)
