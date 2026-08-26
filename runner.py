@@ -70,20 +70,20 @@ def run(dataset, args):
         models["struct_head"] = struct_head
         if task_weighter is not None:
             models["task_weighter"] = task_weighter
-    
-        use_cjepa = bool(getattr(args, "use_cjepa_reg", False))
-        cjepa_projector = None
-        if use_cjepa:
-            if args.num_blocks < 2:
-                raise SystemExit("--use_cjepa_reg 1 requires --num_blocks >= 2 "
-                                  "(the regularizer compares pairs of target blocks).")
-            cjepa_projector = CJEPAProjector(
-                args.embed_dim, out_dim=args.cjepa_proj_dim,
-                hidden=args.cjepa_proj_hidden).to(args.device)
-            models["cjepa_projector"] = cjepa_projector
-            print(f"C-JEPA reg: weight={args.cjepa_weight} sim={args.cjepa_sim_weight} "
-                  f"std={args.cjepa_std_weight} cov={args.cjepa_cov_weight} "
-                  f"blocks={args.num_blocks}")
+
+    use_cjepa = bool(getattr(args, "use_cjepa_reg", False))
+    cjepa_projector = None
+    if use_cjepa:
+        if args.num_blocks < 2:
+            raise SystemExit("--use_cjepa_reg 1 requires --num_blocks >= 2 "
+                              "(the regularizer compares pairs of target blocks).")
+        cjepa_projector = CJEPAProjector(
+            args.embed_dim, out_dim=args.cjepa_proj_dim,
+            hidden=args.cjepa_proj_hidden).to(args.device)
+        models["cjepa_projector"] = cjepa_projector
+        print(f"C-JEPA reg: weight={args.cjepa_weight} sim={args.cjepa_sim_weight} "
+              f"std={args.cjepa_std_weight} cov={args.cjepa_cov_weight} "
+              f"blocks={args.num_blocks}")
 
     if root_utils.maybe_eval_only(
         context_encoder, args, MyFuncs._extract_eval_features, models, ckpt_base
